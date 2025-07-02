@@ -1,197 +1,192 @@
-# Shopping Queries Dataset: A Large-Scale ESCI Benchmark for Improving Product Search
+# GRPO (Group Relative Policy Optimization) 算法复现
 
-## Introduction
+## 项目简介
 
-We introduce the “Shopping Queries Data Set”, a large dataset of difficult search queries, released with the aim of fostering research in the area of semantic matching of queries and products. For each query, the dataset provides a list of up to 40 potentially relevant results, together with ESCI relevance judgements (Exact, Substitute, Complement, Irrelevant) indicating the relevance of the product to the query. Each query-product pair is accompanied by additional information. The dataset is multilingual, as it contains queries in English, Japanese, and Spanish.
+本项目复现了GRPO（群组相对策略优化）算法，这是一种用于训练大语言模型的强化学习算法，最初在DeepSeekMath论文中提出。GRPO被成功应用于DeepSeek R1模型的训练，在数学推理任务上取得了显著成果。
 
+## 算法核心思想
 
-The primary objective of releasing this dataset is to create a benchmark for building new ranking strategies and simultaneously identifying interesting categories of results (i.e., substitutes) that can be used to improve the customer experience when searching for products. The three different tasks that are studied in the literature (see https://amazonkddcup.github.io/) using this Shopping Queries Dataset are:
+GRPO的核心创新在于**使用群组内奖励均值作为基线来计算优势**，从而避免了训练价值函数的需要。这种方法具有以下优点：
 
+- **内存效率**：不需要训练单独的价值函数网络
+- **计算简单**：群组相对优势计算直观且高效
+- **训练稳定**：裁剪机制确保策略更新的稳定性
+- **效果显著**：在数学推理等任务上表现优异
 
-**Task 1 - Query-Product Ranking**: Given a user specified query and a list of matched products, the goal of this task is to rank the products so that the relevant products are ranked above the non-relevant ones.
+## 算法步骤
 
+1. **生成群组响应**：对每个prompt生成K个不同的响应
+2. **计算奖励**：使用奖励模型评估每个响应的质量
+3. **计算群组基线**：R̄ = (1/K) Σ R_i，使用群组平均奖励作为基线
+4. **计算相对优势**：A_i = R_i - R̄，每个响应相对于群组的优势
+5. **策略更新**：使用裁剪目标函数更新策略参数
 
-**Task 2 - Multi-class Product Classification**: Given a query and a result list of products retrieved for this query, the goal of this task is to classify each product as being an Exact, Substitute, Complement, or Irrelevant match for the query.
+## 数学公式
 
-
-**Task 3 - Product Substitute Identification**: This task will measure the ability of the systems to identify the substitute products in the list of results for a given query.
-
-## Dataset
-
-We provide two different versions of the data set. One for task 1 which is reduced version in terms of number of examples and ones for tasks 2 and 3 which is a larger.
-
-The training data set contain a list of query-result pairs with annotated E/S/C/I labels. The data is **multilingual** and it includes queries from **English**, **Japanese**, and **Spanish** languages. The examples in the data set have the following fields: `example_id`, `query`, `query_id`, `product_id`, `product_locale`, `esci_label`, `small_version`, `large_version`, `split`, `product_title`, `product_description`, `product_bullet_point`, `product_brand`, `product_color` and  `source`
-
-The Shopping Queries Data Set is a large-scale manually annotated data set composed of challenging customer queries.
-
-There are 2 versions of the dataset. The reduced version of the data set contains `48,300 unique queries` and `1,118,011 rows` corresponding each to a `<query, item>` judgement. The larger version of the data set contains `130,652 unique queries` and `2,621,738 judgements`. The reduced version of the data accounts for queries that are deemed to be **“easy”**, and hence filtered out. The data is stratified by queries in two splits train, and test.
-
-A summary of our Shopping Queries Data Set is given in the two tables below showing the statistics of the reduced and larger version, respectively. These tables include the number of unique queries, the number of judgements, and the average number of judgements per query (i.e., average depth) across the three different languages.
-
-|       | Total | Total | Total | Train | Train | Train | Test | Test | Test |
-| ------------- | ---------- | ------------- | ---------- | ---------- | ------------- | ---------- | ---------- | ------------- | ---------- |
-| Language      | \# Queries | \# Judgements | Avg. Depth | \# Queries | \# Judgements | Avg. Depth | \# Queries | \# Judgements | Avg. Depth |
-| English (US)  | 29,844     | 601,354       | 20.15      | 20,888     | 419,653       | 20.09      | 8,956      | 181,701       | 20.29      |
-| Spanish (ES)  | 8,049      | 218,774       | 27.18      | 5,632      | 152,891       | 27.15      | 2,417      | 65,883        | 27.26      |
-| Japanese (JP) | 10,407     | 297,883       | 28.62      | 7,284      | 209,094       | 28.71      | 3,123      | 88,789        | 28.43      |
-| Overall       | 48,300     | 1,118,011     | 23.15      | 33,804     | 781,638       | 23.12      | 14,496     | 336,373       | 23.20      |
-
-***Table 1**: Summary of the Shopping queries data set for task 1 (reduced version) - the number of unique queries, the number of judgements, and the average number of judgements per query.*
-
-|       | Total | Total | Total | Train | Train | Train | Test | Test | Test |
-| ------------- | ---------- | ------------- | ---------- | ---------- | ------------- | ---------- | ---------- | ------------- | ---------- |
-| Language      | \# Queries | \# Judgements | Avg. Depth | \# Queries | \# Judgements | Avg. Depth | \# Queries | \# Judgements | Avg. Depth |
-| English (US)  | 97,345     | 1,818,825     | 18.68      | 74,888     | 1,393,063     | 18.60      | 22,458     | 425,762       | 18.96      |
-| Spanish (ES)  | 15,180     | 356,410       | 23.48      | 11,336     | 263,063       | 23.21      | 3,844      | 93,347        | 24.28      |
-| Japanese (JP) | 18,127     | 446,053       | 24.61      | 13,460     | 327,146       | 24.31      | 4,667      | 118,907       | 25.48      |
-| Overall       | 130,652    | 2,621,288     | 20.06      | 99,684     | 1,983,272     | 19.90      | 30,969     | 638,016       | 20.60      |
-
-***Table 2**: Summary of the Shopping queries data set for tasks 2 and 3 (larger version) - the number of unique queries, the number of judgements, and the average number of judgements per query.*
-
-## Usage
-
-The [dataset](https://github.com/amazon-research/esci-code/tree/main/shopping_queries_dataset) has the following files:
-- `shopping_queries_dataset_examples.parquet` contains the following columns : `example_id`, `query`, `query_id`, `product_id`, `product_locale`, `esci_label`, `small_version`, `large_version`, `split`
-- `shopping_queries_dataset_products.parquet` contains the following columns : `product_id`, `product_title`, `product_description`, `product_bullet_point`, `product_brand`, `product_color`, `product_locale`
-- `shopping_queries_dataset_sources.csv` contains the following columns : `query_id`, `source`
-
-### Load examples, products and sources
+GRPO的目标函数为：
 
 ```
-import pandas as pd
-df_examples = pd.read_parquet('shopping_queries_dataset_examples.parquet')
-df_products = pd.read_parquet('shopping_queries_dataset_products.parquet')
-df_sources = pd.read_csv("shopping_queries_dataset_sources.csv")
+L = E[min(r(θ)·A, clip(r(θ), 1-ε, 1+ε)·A)] - β·KL(π_θ || π_old)
 ```
 
-### Merge examples with products
-```
-df_examples_products = pd.merge(
-    df_examples,
-    df_products,
-    how='left',
-    left_on=['product_locale','product_id'],
-    right_on=['product_locale', 'product_id']
-)
-```
-### Filter and prepare for Task 1
+其中：
+- `r(θ) = π_θ(a|s) / π_old(a|s)` 是重要性比率
+- `A = R - R̄` 是群组相对优势
+- `R̄ = (1/K) Σ R_i` 是群组平均奖励
+- `ε` 是裁剪参数，防止过大的策略更新
+- `β` 是KL散度系数
+
+## 项目结构
 
 ```
-df_task_1 = df_examples_products[df_examples_products["small_version"] == 1]
-df_task_1_train = df_task_1[df_task_1["split"] == "train"]
-df_task_1_test = df_task_1[df_task_1["split"] == "test"]
+.
+├── grpo_algorithm.py    # 完整的GRPO算法实现
+├── grpo_demo.py        # 简化的演示版本
+├── README.md           # 项目说明文档
+└── requirements.txt    # 依赖包列表
 ```
 
-### Filter and prepare data for Task 2
-```
-df_task_2 = df_examples_products[df_examples_products["large_version"] == 1]
-df_task_2_train = df_task_2[df_task_2["split"] == "train"]
-df_task_2_test = df_task_2[df_task_2["split"] == "test"]
-```
+## 文件说明
 
-### Filter and prepare data for Task 3
-```
-df_task_3 = df_examples_products[df_examples_products["large_version"] == 1]
-df_task_3["subtitute_label"] = df_task_3["esci_label"].apply(lambda esci_label: 1 if esci_label == "S" else 0 )
-del df_task_3["esci_label"]
-df_task_3_train = df_task_3[df_task_3["split"] == "train"]
-df_task_3_test = df_task_3[df_task_3["split"] == "test"]
-```
-    
-### Merge queries with sources (optional)
-```
-df_examples_products_source = pd.merge(
-    df_examples_products,
-    df_sources,
-    how='left',
-    left_on=['query_id'],
-    right_on=['query_id']
-)
-```
+### `grpo_algorithm.py`
+完整的GRPO算法实现，包含：
+- `GRPOConfig`: 算法配置参数
+- `GRPOTrainer`: 完整的训练器实现
+- 支持实际的神经网络模型训练
 
-## Baselines
-In order to ensure the feasibility of the proposed tasks, we will provide the results obtained by standard baseline models run on this data sets. For example, for the first task (ranking), we have run a BERT model. For the remaining two tasks (classification) we will provide the results of the multilingual BERT-based models as the initial baseline.
+### `grpo_demo.py`
+简化的演示版本，使用模拟数据展示算法核心概念：
+- 不依赖复杂的神经网络模型
+- 清晰展示算法的每个步骤
+- 包含详细的算法原理解释
 
+## 快速开始
 
-### Requirements
-We launched the baselines experiments creating an environment with Python 3.6 and installing the packages dependencies shown below:
-```
-numpy==1.19.2
-pandas==1.1.5
-transformers==4.16.2
-scikit-learn==0.24.1
-sentence-transformers==2.1.0
-```
-
-For installing the dependencies we can launch the following command:
-```bash
-pip install -r requirements.txt
-```
-
-### Reproduce published results
-
-For a task **K**, we provide the same scripts, one for training the model (and preprocessing the data for tasks 2 and 3): `launch-experiments-taskK.sh`; and a second script for getting the predictions for the public test set using the model trained on the previous step: `launch-predictions-taskK.sh`.
-
-#### Task 1 - Query Product Ranking
-
-For task 1, we fine-tuned 3 models one for each `product_locale`.
-
-For `us` locacale we fine-tuned [MS MARCO Cross-Encoders](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2). For `es` and `jp` locales [multilingual MPNet](https://huggingface.co/sentence-transformers/all-mpnet-base-v1). We used the query and title of the product as input for these models.
-
-To get the nDCG score of the ranking models is needed the `terrier` source code (download version 5.5 [here](http://terrier.org/download/))
+### 1. 安装依赖
 
 ```bash
-cd ranking/
-./launch-experiments-task1.sh
-./launch-predictions-task1.sh $TERRIER_PATH
+pip install numpy matplotlib torch
 ```
 
-#### Task 2 - Multiclass Product Classification
-
-For task 2, we trained a Multilayer perceptron (MLP) classifier whose input is the concatenation of the representations provided by [BERT multilingual base](https://huggingface.co/bert-base-multilingual-uncased) for the query and title of the product.
+### 2. 运行演示
 
 ```bash
-cd classification_identification/
-./launch-experiments-task2.sh
-./launch-predictions-task2.sh
+python grpo_demo.py
 ```
 
-#### Task 3 - Product Substitute Identification
+演示程序将展示：
+- 算法原理详解
+- 单步训练过程演示
+- 多步训练模拟
+- 训练进度可视化
 
-For task 3, we followed the same approach as in task 2.
+### 3. 查看完整实现
 
 ```bash
-cd classification_identification/
-./launch-experiments-task3.sh
-./launch-predictions-task3.sh
+python grpo_algorithm.py
 ```
 
-### Results
-The following table shows the baseline results obtained through the different public tests of the three tasks.
+## 演示输出示例
 
-| Task |  Metrics  | Scores |
-|:----:|:--------:|:-----:|
-|    1 | nDCG     | 0.83 |
-|    2 | Macro F1, Micro F1 | 0.23, 0.62 |
-|    3 | Macro F1, Micro F1 | 0.44, 0.76 |
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## Cite
-
-Please cite our paper if you use this dataset for your own research:
-
-```BibTeX
-@article{reddy2022shopping,
-title={Shopping Queries Dataset: A Large-Scale {ESCI} Benchmark for Improving Product Search},
-author={Chandan K. Reddy and Lluís Màrquez and Fran Valero and Nikhil Rao and Hugo Zaragoza and Sambaran Bandyopadhyay and Arnab Biswas and Anlu Xing and Karthik Subbian},
-year={2022},
-eprint={2206.06588},
-archivePrefix={arXiv}
-}
 ```
-## License
+🚀 GRPO (Group Relative Policy Optimization) 算法复现
+   基于DeepSeekMath论文的强化学习算法
 
-This project is licensed under the Apache-2.0 License.
+================================================================================
+GRPO (Group Relative Policy Optimization) 算法原理详解
+================================================================================
+
+🎯 核心思想:
+   GRPO通过群组内的相对比较来估计优势，避免了训练价值函数的需要
+
+📊 算法步骤:
+   1. 生成群组响应：对每个prompt生成K个不同的响应
+   2. 计算奖励：使用奖励模型评估每个响应的质量
+   3. 计算群组基线：R̄ = (1/K) Σ R_i，使用群组平均奖励作为基线
+   4. 计算相对优势：A_i = R_i - R̄，每个响应相对于群组的优势
+   5. 策略更新：使用裁剪目标函数更新策略参数
+
+============================================================
+GRPO训练步骤演示 - Prompt: 2 + 3
+============================================================
+
+1. 生成响应群组:
+   响应1: 解答：2 + 3的答案是5
+   响应2: 计算：2 + 3 = 5
+   响应3: 让我算一下：2 + 3等于5
+   响应4: 简单计算：2 + 3的结果是5
+   响应5: 数学计算：2 + 3 = 6
+   响应6: 我觉得2 + 3等于4
+   响应7: 根据计算：2 + 3 = 5
+   响应8: 答案：2 + 3是5
+
+2. 计算奖励:
+   响应1: 1.052
+   响应2: 0.943
+   响应3: 1.089
+   响应4: 0.967
+   响应5: -0.456
+   响应6: -0.289
+   响应7: 1.012
+   响应8: 0.998
+
+3. 计算群组相对优势:
+   群组平均奖励: 0.665
+   各响应优势:
+     响应1: +0.387 (正优势)
+     响应2: +0.278 (正优势)
+     响应3: +0.424 (正优势)
+     响应4: +0.302 (正优势)
+     响应5: -1.121 (负优势)
+     响应6: -0.954 (负优势)
+     响应7: +0.347 (正优势)
+     响应8: +0.333 (正优势)
+```
+
+## 与PPO的对比
+
+| 特性 | PPO | GRPO |
+|------|-----|------|
+| 优势估计 | 需要价值函数 V(s) | 使用群组均值 R̄ |
+| 内存使用 | 高（需要价值网络） | 低（无需价值网络） |
+| 计算复杂度 | 高 | 低 |
+| 训练稳定性 | 稳定 | 稳定 |
+| 适用场景 | 通用RL任务 | 文本生成任务 |
+
+## 应用场景
+
+GRPO特别适用于以下任务：
+- 数学问题求解
+- 代码生成
+- 逻辑推理
+- 需要精确答案验证的任务
+
+## 参考文献
+
+1. **DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models** - 原始GRPO论文
+2. **DeepSeek R1: Incentivizing reasoning capability in llms via reinforcement learning** - GRPO在实际模型中的应用
+3. **Proximal Policy Optimization Algorithms** - PPO算法原理
+
+## 技术特点
+
+### 核心优势
+- **内存效率**：相比PPO减少约50%的GPU内存使用
+- **实现简单**：算法逻辑清晰，易于理解和实现
+- **效果显著**：在GSM8K数学推理任务上显著提升性能
+
+### 算法创新
+- **群组基线**：使用群组内平均奖励作为基线，避免价值函数训练
+- **相对优势**：通过群组内比较计算优势，减少方差
+- **裁剪机制**：继承PPO的稳定性保证
+
+## 贡献
+
+欢迎提交Issue和Pull Request来改进这个项目！
+
+## 许可证
+
+MIT License
+
+---
+
+**注意**：这是GRPO算法的教学和研究用途复现，如需在生产环境中使用，请参考官方实现和相关论文。
